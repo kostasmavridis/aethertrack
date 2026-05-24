@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url:      jdbc:postgresql://localhost:5432/aethertrack
+    username: aethertrack
+    password: aethertrack_secret
+  flyway:
+    enabled: true
+  jpa:
+    show-sql: true
+  kafka:
+    bootstrap-servers: localhost:9092
+
+logging:
+  level:
+    com.aethertrack: DEBUG
+    org.flywaydb: INFO

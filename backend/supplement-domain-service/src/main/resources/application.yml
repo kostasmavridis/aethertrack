@@ -1,12 +1,38 @@
 spring:
   application:
     name: supplement-domain-service
+  profiles:
+    active: local
+
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+    show-sql: false
+
+  datasource:
+    url:      ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aethertrack}
+    username: ${SPRING_DATASOURCE_USERNAME:aethertrack}
+    password: ${SPRING_DATASOURCE_PASSWORD:aethertrack_secret}
+    driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer:   org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
 server:
   port: 8081
+  error:
+    include-message: always
+    include-binding-errors: always
+
 management:
   endpoints:
     web:
@@ -15,6 +41,19 @@ management:
   endpoint:
     health:
       show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: supplement-domain-service
+    version: "@project.version@"
+    description: "AetherTrack – Supplement Domain Service"
+
 logging:
   level:
     com.aethertrack: DEBUG
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

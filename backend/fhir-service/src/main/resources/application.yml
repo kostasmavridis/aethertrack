@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: fhir-service
+server:
+  port: 8083
+fhir:
+  server:
+    base-url: http://localhost:8080/fhir
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+logging:
+  level:
+    com.aethertrack: DEBUG

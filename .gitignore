@@ -1,0 +1,34 @@
+# Java / Maven / Gradle
+target/
+.gradle/
+build/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+.mvn/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+
+# Node / npm / pnpm
+node_modules/
+dist/
+.pnpm-store/
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+infra/.env

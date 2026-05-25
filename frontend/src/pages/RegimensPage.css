@@ -81,10 +81,19 @@
 
 .items-table tr:last-child td { border-bottom: none; }
 
-.schedule-panel {
+.details-panel {
   margin-top: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px dashed #cbd5e1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.subpanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .empty-state {

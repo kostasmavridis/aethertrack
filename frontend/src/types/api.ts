@@ -60,3 +60,20 @@ export interface RegimenScheduleResponse {
   rows: ScheduleRowResponse[]
   optimizationNotes: string[]
 }
+
+export interface TodayDoseResponse {
+  regimenItemId: number
+  supplementCode: string
+  supplementName: string
+  window: string
+  doseLabel: string
+  taken: boolean
+  adherenceStatus: string | null
+}
+
+export interface RegimenTodayResponse {
+  regimenId: number
+  patientId: string
+  regimenName: string
+  doses: TodayDoseResponse[]
+}

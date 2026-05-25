@@ -24,6 +24,13 @@
   gap: 1rem;
 }
 
+.regimen-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+
 .regimen-name { font-size: 1.1rem; font-weight: 600; color: #1e293b; }
 
 .regimen-meta {
@@ -74,6 +81,12 @@
 
 .items-table tr:last-child td { border-bottom: none; }
 
+.schedule-panel {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed #cbd5e1;
+}
+
 .empty-state {
   text-align: center;
   padding: 3rem;
@@ -119,4 +132,9 @@
   border-radius: 8px;
   font-size: 0.9rem;
   margin-bottom: 1rem;
+}
+
+.muted {
+  color: #94a3b8;
+  font-size: 0.9rem;
 }

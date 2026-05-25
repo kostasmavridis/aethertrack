@@ -1,9 +1,14 @@
-import { useRegimens } from '../hooks/useRegimens'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useRegimens } from '../hooks/useRegimens'
+import { useRegimenSchedule } from '../hooks/useRegimenSchedule'
+import ScheduleTimeline from '../components/ScheduleTimeline'
 import './RegimensPage.css'
 
 export default function RegimensPage() {
   const { regimens, loading, error, refresh } = useRegimens()
+  const [selectedRegimenId, setSelectedRegimenId] = useState<number | null>(null)
+  const { schedule, loading: scheduleLoading, error: scheduleError } = useRegimenSchedule(selectedRegimenId)
 
   return (
     <div className="page">
@@ -35,7 +40,15 @@ export default function RegimensPage() {
                   Status: <span className={`status-badge status-${r.status.toLowerCase()}`}>{r.status}</span>
                 </p>
               </div>
-              <time className="regimen-date">{new Date(r.createdAt).toLocaleDateString()}</time>
+              <div className="regimen-actions">
+                <time className="regimen-date">{new Date(r.createdAt).toLocaleDateString()}</time>
+                <button
+                  className="btn-secondary"
+                  onClick={() => setSelectedRegimenId(selectedRegimenId === r.regimenId ? null : r.regimenId)}
+                >
+                  {selectedRegimenId === r.regimenId ? 'Hide Schedule' : 'View Schedule'}
+                </button>
+              </div>
             </div>
 
             <table className="items-table">
@@ -58,6 +71,14 @@ export default function RegimensPage() {
                 ))}
               </tbody>
             </table>
+
+            {selectedRegimenId === r.regimenId && (
+              <div className="schedule-panel">
+                {scheduleLoading && <p className="muted">Loading schedule…</p>}
+                {scheduleError && <div className="error-banner">{scheduleError}</div>}
+                {schedule && <ScheduleTimeline schedule={schedule} />}
+              </div>
+            )}
           </div>
         ))}
       </div>

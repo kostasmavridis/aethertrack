@@ -9,6 +9,12 @@ spring:
       auto-offset-reset: earliest
       enable-auto-commit: false
 
+timefold:
+  solver:
+    termination:
+      spent-limit: 10s
+    environment-mode: REPRODUCIBLE
+
 server:
   port: ${SERVER_PORT:8082}
   shutdown: graceful
@@ -30,3 +36,4 @@ logging:
     com.aethertrack.scheduling: DEBUG
     org.apache.kafka: WARN
     org.springframework.kafka: INFO
+    ai.timefold: INFO

@@ -1,2 +1,1 @@
-*, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, sans-serif; background: #0d0d0d; color: #e8e8e8; }
+html, body, #root { height: 100%; }

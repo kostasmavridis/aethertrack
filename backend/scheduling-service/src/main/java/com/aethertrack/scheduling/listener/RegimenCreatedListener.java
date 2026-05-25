@@ -1,57 +1,64 @@
 package com.aethertrack.scheduling.listener;
 
-import com.aethertrack.scheduling.config.KafkaTopics;
 import com.aethertrack.scheduling.events.DomainEvent;
 import com.aethertrack.scheduling.events.RegimenCreatedPayload;
+import com.aethertrack.scheduling.service.SchedulingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 /**
- * Listens to aethertrack.regimen.created.
- *
- * Slice 6: logs only.
- * Slice 8+: will map payload -> Timefold planning problem and run the solver.
+ * Kafka consumer for regimen.created topic.
+ * Manual ACK – offset committed only on successful processing.
  */
-@Slf4j
 @Component
-@RequiredArgsConstructor
 public class RegimenCreatedListener {
 
+    private static final Logger log = LoggerFactory.getLogger(RegimenCreatedListener.class);
+
+    private final SchedulingService schedulingService;
     private final ObjectMapper objectMapper;
 
+    public RegimenCreatedListener(SchedulingService schedulingService, ObjectMapper objectMapper) {
+        this.schedulingService = schedulingService;
+        this.objectMapper = objectMapper;
+    }
+
     @KafkaListener(
-            topics           = KafkaTopics.REGIMEN_CREATED,
-            groupId          = "${spring.kafka.consumer.group-id:scheduling-service}",
-            containerFactory = "kafkaListenerContainerFactory"
+        topics           = "${aethertrack.topics.regimen-created:regimen.created}",
+        groupId          = "${spring.kafka.consumer.group-id:scheduling-service}",
+        containerFactory = "regimenCreatedListenerContainerFactory"
     )
-    public void onRegimenCreated(ConsumerRecord<String, DomainEvent<?>> record,
-                                  Acknowledgment ack) {
-        DomainEvent<?> envelope = record.value();
-        log.info("[RegimenCreatedListener] Received event " +
-                 "eventId={} eventType={} correlationId={} key={} partition={} offset={}",
-                 envelope.eventId(), envelope.eventType(), envelope.correlationId(),
-                 record.key(), record.partition(), record.offset());
-
+    public void onRegimenCreated(ConsumerRecord<String, String> record,
+                                  Acknowledgment acknowledgment) {
+        String correlationId = "unknown";
         try {
-            RegimenCreatedPayload payload = objectMapper.convertValue(
-                    envelope.payload(), RegimenCreatedPayload.class);
+            DomainEvent<RegimenCreatedPayload> event = objectMapper.readValue(
+                record.value(),
+                objectMapper.getTypeFactory().constructParametricType(
+                    DomainEvent.class, RegimenCreatedPayload.class));
 
-            log.info("[RegimenCreatedListener] regimenId={} patientId={} items={}",
-                     payload.regimenId(), payload.patientId(), payload.items().size());
+            correlationId = event.correlationId() != null ? event.correlationId() : record.key();
+            MDC.put("correlationId", correlationId);
+            MDC.put("regimenId",     String.valueOf(event.payload().regimenId()));
 
-            // TODO Slice 8: schedulingOrchestrator.schedule(payload);
+            log.info("[RegimenCreatedListener] eventId={} regimenId={} offset={}",
+                     event.eventId(), event.payload().regimenId(), record.offset());
 
-            ack.acknowledge();
+            schedulingService.scheduleRegimen(event.payload());
+            acknowledgment.acknowledge();
 
         } catch (Exception ex) {
-            log.error("[RegimenCreatedListener] Failed to process event eventId={}: {}",
-                      envelope.eventId(), ex.getMessage(), ex);
-            // Do NOT ack – message redelivered (at-least-once semantics)
+            log.error("[RegimenCreatedListener] Failed offset={} correlationId={}: {}",
+                      record.offset(), correlationId, ex.getMessage(), ex);
+            throw new RuntimeException("Failed to process RegimenCreated", ex);
+        } finally {
+            MDC.clear();
         }
     }
 }

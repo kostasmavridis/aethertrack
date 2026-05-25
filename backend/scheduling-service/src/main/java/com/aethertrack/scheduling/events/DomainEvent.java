@@ -3,14 +3,15 @@ package com.aethertrack.scheduling.events;
 import java.time.Instant;
 
 /**
- * Generic inbound event envelope – mirrors the producer's DomainEvent<P>.
- * Payload is kept as Object here; each listener re-deserializes it to the concrete type.
+ * Generic event envelope for all domain events.
  */
 public record DomainEvent<P>(
         String eventId,
         String eventType,
         String version,
+        Instant timestamp,
         String correlationId,
-        Instant occurredAt,
+        String causationId,
+        String userId,
         P payload
 ) {}

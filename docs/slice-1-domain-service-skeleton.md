@@ -40,7 +40,7 @@ com.aethertrack/
 
 | Profile | Datasource | Notes |
 |---------|-----------|-------|
-| (default) | `localhost:5432/aethertrack` | Local dev with Docker Compose |
+| (default) | `localhost:5432/aethertrack` | Local dev with Docker Compose (`postgres:18-alpine`) |
 | `test` | Testcontainers Postgres | Integration tests |
 
 ## Endpoints added
@@ -54,7 +54,7 @@ com.aethertrack/
 ## How to run locally
 
 ```bash
-# Start Postgres
+# Start Postgres 18
 cd infra && docker compose up -d postgres
 
 # Run the service

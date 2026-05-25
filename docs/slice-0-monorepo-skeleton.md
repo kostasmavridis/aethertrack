@@ -62,11 +62,14 @@ All four service modules inherit from the parent and add only their specific dep
 
 Initial compose file brings up infrastructure dependencies only:
 
+> **Note:** PostgreSQL 18 changed the default `PGDATA` path to `/var/lib/postgresql/18/docker`
+> and the volume mount target to the parent `/var/lib/postgresql`. The compose file handles this explicitly.
+
 | Service | Image | Port |
 |---------|-------|------|
-| postgres | postgres:16 | 5432 |
-| kafka (Redpanda) | redpanda/redpanda | 9092 |
-| hapi-fhir | hapiproject/hapi:v8.8.0 | 8080 |
+| postgres | `postgres:18-alpine` | 5432 |
+| kafka (Redpanda) | `redpandadata/redpanda:v25.3.9` | 9092 |
+| hapi-fhir | `hapiproject/hapi:latest` (R5) | 8080 |
 
 Application service blocks are present but commented out, to be uncommented slice by slice from Slice 18 onwards.
 

@@ -3,7 +3,7 @@ spring:
     name: fhir-service
 
   datasource:
-    url:      ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/aethertrack}
+    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/aethertrack}
     username: ${DATASOURCE_USERNAME:aethertrack}
     password: ${DATASOURCE_PASSWORD:aethertrack_secret}
     driver-class-name: org.postgresql.Driver
@@ -33,15 +33,17 @@ spring:
       auto-offset-reset: earliest
       enable-auto-commit: false
     producer:
-      key-serializer:   org.apache.kafka.common.serialization.StringSerializer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
 
 aethertrack:
   fhir:
-    base-url:           ${FHIR_BASE_URL:http://localhost:8080/fhir}
-    socket-timeout-ms:  ${FHIR_SOCKET_TIMEOUT_MS:10000}
+    base-url: ${FHIR_BASE_URL:http://localhost:8080/fhir}
+    socket-timeout-ms: ${FHIR_SOCKET_TIMEOUT_MS:10000}
     connect-timeout-ms: ${FHIR_CONNECT_TIMEOUT_MS:5000}
+    sync-outbox:
+      poll-ms: ${FHIR_SYNC_OUTBOX_POLL_MS:2000}
 
 server:
   port: ${SERVER_PORT:8083}

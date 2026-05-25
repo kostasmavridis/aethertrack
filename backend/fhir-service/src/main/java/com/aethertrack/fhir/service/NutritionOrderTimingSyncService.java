@@ -51,18 +51,18 @@ public class NutritionOrderTimingSyncService {
                 .distinct()
                 .toList();
 
+        Timing timing = buildTiming(whenCodes);
+
         for (NutritionOrder.NutritionOrderSupplementComponent supplement : order.getSupplement()) {
-            if (!supplement.hasSchedule()) {
-                supplement.addSchedule();
+            if (supplement.hasSchedule()) {
+                // update existing schedule's first timing in-place
+                supplement.getSchedule().getTimingFirstRep().setRepeat(timing.getRepeat());
+            } else {
+                NutritionOrder.SupplementScheduleComponent schedule =
+                    new NutritionOrder.SupplementScheduleComponent();
+                schedule.addTiming(timing);
+                supplement.setSchedule(schedule);
             }
-            Timing timing = new Timing();
-            Timing.TimingRepeatComponent repeat = new Timing.TimingRepeatComponent();
-            repeat.setFrequency(Math.max(1, whenCodes.size()));
-            repeat.setPeriod(1);
-            repeat.setPeriodUnit(Timing.UnitsOfTime.D);
-            whenCodes.forEach(repeat::addWhen);
-            timing.setRepeat(repeat);
-            supplement.getScheduleFirstRep().setTiming(timing);
         }
 
         MethodOutcome outcome = fhirClient.update()
@@ -80,21 +80,27 @@ public class NutritionOrderTimingSyncService {
                 outcome.getId() != null ? outcome.getId().getVersionIdPart() : "n/a");
     }
 
+    private Timing buildTiming(List<Timing.EventTiming> whenCodes) {
+        Timing timing = new Timing();
+        Timing.TimingRepeatComponent repeat = new Timing.TimingRepeatComponent();
+        repeat.setFrequency(Math.max(1, whenCodes.size()));
+        repeat.setPeriod(1);
+        repeat.setPeriodUnit(Timing.UnitsOfTime.D);
+        whenCodes.forEach(repeat::addWhen);
+        timing.setRepeat(repeat);
+        return timing;
+    }
+
     @Transactional
     public void enqueueFailed(Long regimenId, String nutritionOrderId, String reason, String correlationId) {
         try {
-            var completed = new DomainEvent<>(
-                    UUID.randomUUID().toString(),
-                    "FHIRSyncFailed",
-                    "1",
-                    Instant.now(),
-                    correlationId,
-                    null,
-                    null,
-                    new FhirSyncFailedPayload(regimenId, nutritionOrderId, reason, Instant.now())
-            );
-            String json = objectMapper.writeValueAsString(completed);
-            outboxRepository.save(FhirSyncOutboxEvent.pending(KafkaTopics.FHIR_SYNC_FAILED, regimenId, correlationId, json));
+            var event = new DomainEvent<>(
+                    UUID.randomUUID().toString(), "FHIRSyncFailed", "1",
+                    Instant.now(), correlationId, null, null,
+                    new FhirSyncFailedPayload(regimenId, nutritionOrderId, reason, Instant.now()));
+            outboxRepository.save(FhirSyncOutboxEvent.pending(
+                    KafkaTopics.FHIR_SYNC_FAILED, regimenId, correlationId,
+                    objectMapper.writeValueAsString(event)));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Unable to serialize FHIRSyncFailed payload", e);
         }
@@ -102,18 +108,13 @@ public class NutritionOrderTimingSyncService {
 
     private void enqueueCompleted(Long regimenId, String nutritionOrderId, int supplementCount, String correlationId) {
         try {
-            var completed = new DomainEvent<>(
-                    UUID.randomUUID().toString(),
-                    "FHIRSyncCompleted",
-                    "1",
-                    Instant.now(),
-                    correlationId,
-                    null,
-                    null,
-                    new FhirSyncCompletedPayload(regimenId, nutritionOrderId, supplementCount, Instant.now())
-            );
-            String json = objectMapper.writeValueAsString(completed);
-            outboxRepository.save(FhirSyncOutboxEvent.pending(KafkaTopics.FHIR_SYNC_COMPLETED, regimenId, correlationId, json));
+            var event = new DomainEvent<>(
+                    UUID.randomUUID().toString(), "FHIRSyncCompleted", "1",
+                    Instant.now(), correlationId, null, null,
+                    new FhirSyncCompletedPayload(regimenId, nutritionOrderId, supplementCount, Instant.now()));
+            outboxRepository.save(FhirSyncOutboxEvent.pending(
+                    KafkaTopics.FHIR_SYNC_COMPLETED, regimenId, correlationId,
+                    objectMapper.writeValueAsString(event)));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Unable to serialize FHIRSyncCompleted payload", e);
         }
@@ -123,10 +124,10 @@ public class NutritionOrderTimingSyncService {
         if (code == null) return null;
         return switch (code.toUpperCase()) {
             case "MORNING", "AM", "BREAKFAST" -> Timing.EventTiming.MORN;
-            case "MIDDAY", "NOON", "LUNCH" -> Timing.EventTiming.NOON;
-            case "EVENING", "PM", "DINNER" -> Timing.EventTiming.EVE;
-            case "NIGHT", "BEDTIME" -> Timing.EventTiming.HS;
-            case "WITH_MEAL", "MEAL" -> Timing.EventTiming.PCM;
+            case "MIDDAY", "NOON", "LUNCH"   -> Timing.EventTiming.NOON;
+            case "EVENING", "PM", "DINNER"   -> Timing.EventTiming.EVE;
+            case "NIGHT", "BEDTIME"          -> Timing.EventTiming.HS;
+            case "WITH_MEAL", "MEAL"         -> Timing.EventTiming.PCM;
             default -> null;
         };
     }

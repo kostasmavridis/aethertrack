@@ -11,6 +11,7 @@ import com.aethertrack.fhir.events.RegimenCreatedPayload.RegimenItem;
 import com.aethertrack.fhir.mapper.NutritionOrderMapper;
 import com.aethertrack.fhir.repository.RegimenFhirMappingRepository;
 import org.hl7.fhir.r5.model.IdType;
+import org.hl7.fhir.r5.model.NutritionOrder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,10 +50,12 @@ class NutritionOrderServiceTest {
 
     @Test void createFromRegimen_createsAndPersistsMapping() throws Exception {
         when(mappingRepo.existsByRegimenId(42L)).thenReturn(false);
-        var no = new org.hl7.fhir.r5.model.NutritionOrder();
+        NutritionOrder no = new NutritionOrder();
         when(mapper.toNutritionOrder(any())).thenReturn(no);
         when(fhirClient.create()).thenReturn(createStep);
-        when(createStep.resource(any())).thenReturn(createTypedStep);
+        // cast to IBaseResource to resolve the ambiguous resource() overload
+        when(createStep.resource(any(org.hl7.fhir.instance.model.api.IBaseResource.class)))
+            .thenReturn(createTypedStep);
         MethodOutcome outcome = new MethodOutcome();
         outcome.setId(new IdType("NutritionOrder", "99"));
         when(createTypedStep.execute()).thenReturn(outcome);
@@ -75,7 +78,7 @@ class NutritionOrderServiceTest {
 
     @Test void createFromRegimen_propagatesHapiException() {
         when(mappingRepo.existsByRegimenId(42L)).thenReturn(false);
-        when(mapper.toNutritionOrder(any())).thenReturn(new org.hl7.fhir.r5.model.NutritionOrder());
+        when(mapper.toNutritionOrder(any())).thenReturn(new NutritionOrder());
         when(fhirClient.create()).thenThrow(new RuntimeException("HAPI down"));
         assertThatThrownBy(() -> service.createFromRegimen(payload(), null))
             .isInstanceOf(RuntimeException.class)

@@ -53,9 +53,14 @@ class RegimenCreatedListenerIT {
                         BigDecimal.ONE, "tablet", 1, "MORNING")));
 
         DomainEvent<RegimenCreatedPayload> event = new DomainEvent<>(
-                UUID.randomUUID().toString(),
-                "RegimenCreated", "v1", "test-corr-123",
-                Instant.now(), payload);
+                UUID.randomUUID().toString(),   // eventId
+                "RegimenCreated",               // eventType
+                "v1",                           // version
+                Instant.now(),                  // timestamp
+                "test-corr-123",               // correlationId
+                null,                           // causationId
+                null,                           // userId
+                payload);                       // payload
 
         template.send(new ProducerRecord<>("aethertrack.regimen.created", "42", event));
 

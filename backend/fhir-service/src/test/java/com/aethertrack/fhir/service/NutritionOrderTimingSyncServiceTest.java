@@ -32,16 +32,17 @@ class NutritionOrderTimingSyncServiceTest {
     @Mock RegimenFhirMappingRepository mappingRepository;
     @Mock FhirSyncOutboxRepository outboxRepository;
 
-    @Mock ca.uhn.fhir.rest.gclient.IRead readStep;
-    @Mock ca.uhn.fhir.rest.gclient.IReadTyped<NutritionOrder> readTyped;
-    @Mock ca.uhn.fhir.rest.gclient.IUpdate updateStep;
-    @Mock ca.uhn.fhir.rest.gclient.IUpdateTyped updateTyped;
+    @Mock ca.uhn.fhir.rest.gclient.IRead                            readStep;
+    @Mock ca.uhn.fhir.rest.gclient.IReadExecutable<NutritionOrder>  readExecutable;
+    @Mock ca.uhn.fhir.rest.gclient.IUpdate                          updateStep;
+    @Mock ca.uhn.fhir.rest.gclient.IUpdateTyped                     updateTyped;
 
     NutritionOrderTimingSyncService service;
 
     @BeforeEach
     void setUp() {
-        service = new NutritionOrderTimingSyncService(fhirClient, mappingRepository, outboxRepository, new ObjectMapper());
+        service = new NutritionOrderTimingSyncService(
+            fhirClient, mappingRepository, outboxRepository, new ObjectMapper());
     }
 
     @Test
@@ -49,15 +50,22 @@ class NutritionOrderTimingSyncServiceTest {
         var mapping = RegimenFhirMapping.of(42L, "99", "http://hapi/fhir/NutritionOrder/99");
         when(mappingRepository.findByRegimenId(42L)).thenReturn(Optional.of(mapping));
 
+        // Build a NutritionOrder with one supplement that already has a schedule
         NutritionOrder order = new NutritionOrder();
         var supp = new NutritionOrder.NutritionOrderSupplementComponent();
-        supp.addSchedule();
+        var sched = new NutritionOrder.SupplementScheduleComponent();
+        sched.addTiming(new Timing());   // pre-populate so hasSchedule() == true
+        supp.setSchedule(sched);
         order.addSupplement(supp);
 
+        // Mock read() chain: IRead → IReadTyped (mock as IReadExecutable to avoid type mismatch)
+        @SuppressWarnings("unchecked")
+        ca.uhn.fhir.rest.gclient.IReadTyped<NutritionOrder> readTyped =
+            (ca.uhn.fhir.rest.gclient.IReadTyped<NutritionOrder>) readExecutable;
         when(fhirClient.read()).thenReturn(readStep);
         when(readStep.resource(NutritionOrder.class)).thenReturn(readTyped);
-        when(readTyped.withId("99")).thenReturn(readTyped);
-        when(readTyped.execute()).thenReturn(order);
+        when(readTyped.withId("99")).thenReturn(readExecutable);
+        when(readExecutable.execute()).thenReturn(order);
 
         when(fhirClient.update()).thenReturn(updateStep);
         when(updateStep.resource(any(NutritionOrder.class))).thenReturn(updateTyped);
@@ -66,13 +74,10 @@ class NutritionOrderTimingSyncServiceTest {
         when(updateTyped.execute()).thenReturn(outcome);
 
         var payload = new OptimizationCompletedPayload(
-                42L,
-                "0hard/0soft",
-                Instant.parse("2026-05-25T01:00:00Z"),
-                List.of(new OptimizationCompletedPayload.DoseAssignment(
-                        1L, 0, "MORNING", "08:00", "08:30", BigDecimal.ONE, "tablet"
-                ))
-        );
+            42L, "0hard/0soft",
+            Instant.parse("2026-05-25T01:00:00Z"),
+            List.of(new OptimizationCompletedPayload.DoseAssignment(
+                1L, 0, "MORNING", "08:00", "08:30", BigDecimal.ONE, "tablet")));
 
         service.syncTiming(payload, "corr-1");
 
@@ -80,8 +85,11 @@ class NutritionOrderTimingSyncServiceTest {
         ArgumentCaptor<FhirSyncOutboxEvent> captor = ArgumentCaptor.forClass(FhirSyncOutboxEvent.class);
         verify(outboxRepository).save(captor.capture());
         assertThat(captor.getValue().getEventType()).isEqualTo("fhir.sync.completed");
-        assertThat(order.getSupplementFirstRep().getScheduleFirstRep().getTiming().getRepeat().getWhen())
-                .anyMatch(w -> w.getValue() == Timing.EventTiming.MORN);
+
+        // Verify timing was written correctly via R5 API
+        Timing t = order.getSupplementFirstRep().getSchedule().getTimingFirstRep();
+        assertThat(t.getRepeat().getWhen())
+            .anyMatch(w -> w.getValue() == Timing.EventTiming.MORN);
     }
 
     @Test

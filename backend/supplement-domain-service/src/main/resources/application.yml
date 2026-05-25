@@ -18,7 +18,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate          # Flyway owns the schema; Hibernate only validates
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
@@ -31,7 +31,15 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
     validate-on-migrate: true
-    out-of-order: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 1
 
 server:
   port: ${SERVER_PORT:8081}
@@ -46,7 +54,7 @@ management:
     health:
       show-details: always
       probes:
-        enabled: true    # /actuator/health/liveness  /actuator/health/readiness
+        enabled: true
 
 logging:
   level:
@@ -54,4 +62,4 @@ logging:
     com.aethertrack: DEBUG
     org.flywaydb: INFO
     org.hibernate.SQL: DEBUG
-    com.zaxxer.hikari: INFO
+    org.apache.kafka: WARN

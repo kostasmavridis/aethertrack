@@ -1,8 +1,14 @@
 # Top-level 'version' key removed (obsolete in Compose v2)
 services:
 
-  # ── PostgreSQL 18 ────────────────────────────────────────────────────
-  # Project requires PostgreSQL 18.3+; use 18-alpine for a minimal image.
+  # ── PostgreSQL 18 ───────────────────────────────────────────────────
+  # BREAKING CHANGE in PG 18 (vs PG 17 and below):
+  #   - PGDATA default changed from /var/lib/postgresql/data
+  #     to /var/lib/postgresql/18/docker
+  #   - The declared VOLUME also changed to /var/lib/postgresql (the parent).
+  #   - Volume mounts must target /var/lib/postgresql, NOT /data.
+  #   - PGDATA is explicitly set here for clarity and future-proofing.
+  # Reference: https://hub.docker.com/_/postgres (PG 18 changelog)
   postgres:
     image: postgres:18-alpine
     container_name: aethertrack-postgres
@@ -11,15 +17,21 @@ services:
       POSTGRES_DB:       aethertrack
       POSTGRES_USER:     aethertrack
       POSTGRES_PASSWORD: aethertrack_secret
+      # Explicit PGDATA matching the PG 18 default; actual data lives at
+      # <volume>/18/docker inside the named volume.
+      PGDATA: /var/lib/postgresql/18/docker
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Mount the PARENT directory, not the old /data subfolder.
+      # PG 18 writes to postgres_data:/var/lib/postgresql/18/docker
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aethertrack -d aethertrack"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
 
   # ── Kafka (Redpanda KRaft – no ZooKeeper) ────────────────────────────
   kafka:

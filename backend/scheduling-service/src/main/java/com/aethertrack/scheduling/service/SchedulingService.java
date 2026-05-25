@@ -17,27 +17,32 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 /**
- * Orchestrates: DB fetch → Map → Solve → Log.
- * No persistence or events yet (Slice 9 adds those).
+ * Orchestrates: DB fetch → Map → Solve → Persist → Outbox.
+ *
+ * Slice 8: DB fetch, map, solve, log.
+ * Slice 9: persist + outbox via {@link SchedulePersistenceService}.
  */
 @Service
 public class SchedulingService {
 
     private static final Logger log = LoggerFactory.getLogger(SchedulingService.class);
 
-    private final RegimenItemRepository regimenItemRepository;
-    private final PlanningProblemMapper mapper;
+    private final RegimenItemRepository        regimenItemRepository;
+    private final PlanningProblemMapper         mapper;
     private final SolverManager<SupplementSchedule, Long> solverManager;
+    private final SchedulePersistenceService    persistenceService;
 
     public SchedulingService(RegimenItemRepository regimenItemRepository,
                               PlanningProblemMapper mapper,
-                              SolverManager<SupplementSchedule, Long> solverManager) {
+                              SolverManager<SupplementSchedule, Long> solverManager,
+                              SchedulePersistenceService persistenceService) {
         this.regimenItemRepository = regimenItemRepository;
-        this.mapper = mapper;
-        this.solverManager = solverManager;
+        this.mapper                = mapper;
+        this.solverManager         = solverManager;
+        this.persistenceService    = persistenceService;
     }
 
-    public void scheduleRegimen(RegimenCreatedPayload payload) {
+    public void scheduleRegimen(RegimenCreatedPayload payload, String correlationId) {
         Long regimenId = payload.regimenId();
         log.info("[scheduleRegimen] Starting regimenId={} patientId={}", regimenId, payload.patientId());
 
@@ -50,7 +55,12 @@ public class SchedulingService {
 
         log.info("[scheduleRegimen] {} doses, {} slots – submitting to solver",
                  problem.getDoses().size(), problem.getTimeSlots().size());
-        solve(regimenId, problem);
+        solve(regimenId, problem, correlationId);
+    }
+
+    /** Backwards-compatible overload for callers that don't have a correlationId. */
+    public void scheduleRegimen(RegimenCreatedPayload payload) {
+        scheduleRegimen(payload, null);
     }
 
     private SupplementSchedule buildProblem(RegimenCreatedPayload payload) {
@@ -62,24 +72,24 @@ public class SchedulingService {
             }
             return mapper.fromReadModels(payload.regimenId(), payload.patientId(), items);
         } catch (DataAccessException ex) {
-            log.error("[buildProblem] DB error for regimenId={}: {} – using payload fallback",
+            log.error("[buildProblem] DB error regimenId={}: {} – using payload fallback",
                       payload.regimenId(), ex.getMessage());
             return mapper.fromEventPayload(payload);
         }
     }
 
-    private void solve(Long regimenId, SupplementSchedule problem) {
+    private void solve(Long regimenId, SupplementSchedule problem, String correlationId) {
         SolverJob<SupplementSchedule, Long> job = solverManager.solveAndListen(
             regimenId,
             id -> problem,
-            sol -> {
-                if (sol.getScore() != null)
-                    log.debug("[solver] Best score regimenId={}: {}", regimenId, sol.getScore());
-            },
+            sol -> { if (sol.getScore() != null)
+                log.debug("[solver] Best score regimenId={}: {}", regimenId, sol.getScore()); },
             (id, ex) -> log.error("[solver] Error regimenId={}: {}", id, ex.getMessage(), ex)
         );
         try {
-            logSchedule(job.getFinalBestSolution());
+            SupplementSchedule solution = job.getFinalBestSolution();
+            logSchedule(solution);
+            persistenceService.persistAndEnqueue(solution, correlationId);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("[solve] Interrupted regimenId={}", regimenId);
@@ -89,21 +99,16 @@ public class SchedulingService {
     }
 
     private void logSchedule(SupplementSchedule solution) {
-        log.info("\u2554{}", "=".repeat(58));
-        log.info("\u2551  SCHEDULE regimenId={}  score={}", solution.getRegimenId(), solution.getScore());
-        log.info("\u2560{}", "=".repeat(58));
+        log.info("╔{}", "=".repeat(58));
+        log.info("║  SCHEDULE regimenId={}  score={}", solution.getRegimenId(), solution.getScore());
+        log.info("╠{}", "=".repeat(58));
         solution.getDoses().stream()
-            .sorted((a, b) -> {
-                if (a.getAssignedSlot() == null) return 1;
-                if (b.getAssignedSlot() == null) return -1;
-                return a.getAssignedSlot().getStartTime().compareTo(b.getAssignedSlot().getStartTime());
-            })
-            .forEach(d -> log.info("\u2551  {:>10} | {:<16} {} {}",
-                d.getAssignedSlot() != null ? d.getAssignedSlot().getId() : "UNASSIGNED",
-                d.getSupplementCode(),
-                d.getDoseQty() + " " + d.getDoseUnit(),
-                buildFlags(d)));
-        log.info("\u255a{}", "=".repeat(58));
+            .filter(d -> d.getAssignedSlot() != null)
+            .sorted((a, b) -> a.getAssignedSlot().getStartTime().compareTo(b.getAssignedSlot().getStartTime()))
+            .forEach(d -> log.info("║  {:>10} | {:<16} {} {}",
+                d.getAssignedSlot().getId(), d.getSupplementCode(),
+                d.getDoseQty() + " " + d.getDoseUnit(), buildFlags(d)));
+        log.info("╚{}", "=".repeat(58));
     }
 
     private String buildFlags(SupplementDose d) {

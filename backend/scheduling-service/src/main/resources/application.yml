@@ -18,12 +18,26 @@ spring:
     default-schema: scheduling
     locations: classpath:db/migration
 
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: scheduling
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: scheduling-service
       auto-offset-reset: earliest
       enable-auto-commit: false
+    producer:
+      key-serializer:   org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
 
 timefold:
   solver:
@@ -34,6 +48,8 @@ timefold:
 aethertrack:
   topics:
     regimen-created: regimen.created
+  outbox:
+    poll-interval-ms: 2000
 
 server:
   port: ${SERVER_PORT:8082}

@@ -1,11 +1,24 @@
 spring:
   application:
     name: fhir-service
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: fhir-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+
+aethertrack:
+  fhir:
+    base-url:           ${FHIR_BASE_URL:http://localhost:8080/fhir}
+    socket-timeout-ms:  ${FHIR_SOCKET_TIMEOUT_MS:10000}
+    connect-timeout-ms: ${FHIR_CONNECT_TIMEOUT_MS:5000}
+
 server:
-  port: 8083
-fhir:
-  server:
-    base-url: http://localhost:8080/fhir
+  port: ${SERVER_PORT:8083}
+  shutdown: graceful
+
 management:
   endpoints:
     web:
@@ -14,6 +27,15 @@ management:
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+  health:
+    fhirServer:
+      enabled: true
+
 logging:
   level:
-    com.aethertrack: DEBUG
+    root: INFO
+    com.aethertrack.fhir: DEBUG
+    ca.uhn.fhir: WARN
+    org.apache.kafka: WARN

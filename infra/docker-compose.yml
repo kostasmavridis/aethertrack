@@ -1,5 +1,7 @@
-version: "3.9"
+# Removed top-level 'version' key (obsolete in Compose v2, causes warning)
 services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: aethertrack-postgres
@@ -8,53 +10,97 @@ services:
       POSTGRES_DB:       aethertrack
       POSTGRES_USER:     aethertrack
       POSTGRES_PASSWORD: aethertrack_secret
-    ports: ["5432:5432"]
-    volumes: [postgres_data:/var/lib/postgresql/data]
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aethertrack -d aethertrack"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # ── Kafka (Redpanda KRaft – no ZooKeeper) ────────────────────────────
+  # Latest stable: v25.3.9  (bumped from v24.3.4 which caused pull errors)
   kafka:
-    image: redpandadata/redpanda:v24.3.4
+    image: redpandadata/redpanda:v25.3.9
     container_name: aethertrack-kafka
     restart: unless-stopped
     command:
-      - redpanda start
+      - redpanda
+      - start
       - --overprovisioned
-      - --smp 1
-      - --memory 512M
-      - --reserve-memory 0M
-      - --node-id 0
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
       - --check=false
-      - --kafka-addr PLAINTEXT://0.0.0.0:9092
-      - --advertise-kafka-addr PLAINTEXT://kafka:9092
-    ports: ["9092:9092"]
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://kafka:9092
+    ports:
+      - "9092:9092"
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster info --brokers localhost:9092 || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
+      start_period: 10s
 
+  # ── HAPI FHIR R5 Server ────────────────────────────────────────────────
+  # Fixed tag: 'hapiproject/hapi:latest'  (v8.8.0-distroless does not exist;
+  # distroless variant is not published – use standard image or pin to v8.4.0-2)
   hapi-fhir:
-    image: hapiproject/hapi:v8.8.0-distroless
+    image: hapiproject/hapi:latest
     container_name: aethertrack-fhir
     restart: unless-stopped
     environment:
       hapi.fhir.fhir_version: R5
-      spring.datasource.url: jdbc:postgresql://postgres:5432/aethertrack
+      spring.datasource.url:      jdbc:postgresql://postgres:5432/aethertrack
       spring.datasource.username: aethertrack
       spring.datasource.password: aethertrack_secret
       spring.datasource.driverClassName: org.postgresql.Driver
-    ports: ["8080:8080"]
+      spring.jpa.properties.hibernate.dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgres94Dialect
+    ports:
+      - "8080:8080"
     depends_on:
-      postgres: { condition: service_healthy }
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/fhir/metadata > /dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
+      start_period: 60s    # HAPI is slow on first boot (schema creation)
+
+  # ── Application services (uncommented slice by slice from Slice 18) ───
+  # supplement-domain-service:
+  #   build: ../backend/supplement-domain-service
+  #   ports: ["8081:8081"]
+  #   depends_on:
+  #     postgres: { condition: service_healthy }
+  #     kafka:    { condition: service_healthy }
+  #
+  # scheduling-service:
+  #   build: ../backend/scheduling-service
+  #   ports: ["8082:8082"]
+  #
+  # fhir-service:
+  #   build: ../backend/fhir-service
+  #   ports: ["8083:8083"]
+  #
+  # intake-service:
+  #   build: ../backend/intake-service
+  #   ports: ["8084:8084"]
+  #
+  # frontend:
+  #   build: ../frontend
+  #   ports: ["3000:80"]
 
 volumes:
   postgres_data:

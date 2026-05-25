@@ -1,0 +1,12 @@
+# Disable Kafka auto-configuration for slice tests that don't need it yet
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  flyway:
+    enabled: true
+logging:
+  level:
+    com.aethertrack: DEBUG
+    org.flywaydb: INFO
+    org.hibernate.SQL: DEBUG

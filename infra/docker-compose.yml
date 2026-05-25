@@ -1,7 +1,7 @@
-# AetherTrack – Minimal Stack (Slice 18)
-# Brings up: Postgres 18, Redpanda (Kafka-compatible), HAPI FHIR R5, supplement-domain-service
-# Remaining services (scheduling, fhir-service, intake, frontend) are defined but commented out;
-# they will be uncommented in Slice 19.
+# AetherTrack – Full Stack (Slice 19)
+# Brings up: Postgres 18, Redpanda (Kafka-compatible), HAPI FHIR R5,
+#            supplement-domain-service, scheduling-service, fhir-service,
+#            intake-service, frontend (nginx)
 #
 # NOTE: PostgreSQL 18 changed PGDATA to /var/lib/postgresql/18/docker and the
 # declared VOLUME to /var/lib/postgresql. The named volume MUST be mounted at
@@ -135,7 +135,7 @@ services:
       start_period: 60s
 
   # ─────────────────────────────────────────────────────────────────
-  # supplement-domain-service (Slice 18 – first containerised service)
+  # supplement-domain-service
   # ─────────────────────────────────────────────────────────────────
   supplement-domain-service:
     build:
@@ -152,7 +152,6 @@ services:
     environment:
       SERVER_PORT: 8081
       SPRING_PROFILES_ACTIVE: docker
-      # Spring Boot relaxed binding: these map directly to spring.datasource.* and spring.kafka.*
       SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-aethertrack}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-aethertrack}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aethertrack_secret}
@@ -169,85 +168,128 @@ services:
       start_period: 45s
 
   # ─────────────────────────────────────────────────────────────────
-  # Remaining services – uncomment in Slice 19
+  # scheduling-service
+  # Reads RegimenCreated from Kafka, runs Timefold solver, persists
+  # scheduled_dose rows in the `scheduling` schema.
   # ─────────────────────────────────────────────────────────────────
+  scheduling-service:
+    build:
+      context: ../backend
+      dockerfile: scheduling-service/Dockerfile
+    image: aethertrack/scheduling-service:local
+    container_name: aethertrack-scheduling
+    restart: unless-stopped
+    depends_on:
+      supplement-domain-service:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8082
+      SPRING_PROFILES_ACTIVE: docker
+      DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-aethertrack}
+      DATASOURCE_USERNAME: ${POSTGRES_USER:-aethertrack}
+      DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aethertrack_secret}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "${SCHEDULING_PORT:-8082}:8082"
+    networks:
+      - aethertrack
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
-  # scheduling-service:
-  #   build:
-  #     context: ../backend
-  #     dockerfile: scheduling-service/Dockerfile
-  #   image: aethertrack/scheduling-service:local
-  #   container_name: aethertrack-scheduling
-  #   restart: unless-stopped
-  #   depends_on:
-  #     supplement-domain-service:
-  #       condition: service_healthy
-  #   environment:
-  #     SERVER_PORT: 8082
-  #     SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-aethertrack}
-  #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-aethertrack}
-  #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aethertrack_secret}
-  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  #   ports:
-  #     - "${SCHEDULING_PORT:-8082}:8082"
-  #   networks:
-  #     - aethertrack
+  # ─────────────────────────────────────────────────────────────────
+  # fhir-service
+  # Consumes RegimenCreated + OptimizationCompleted; writes FHIR resources to HAPI.
+  # ─────────────────────────────────────────────────────────────────
+  fhir-service:
+    build:
+      context: ../backend
+      dockerfile: fhir-service/Dockerfile
+    image: aethertrack/fhir-service:local
+    container_name: aethertrack-fhir
+    restart: unless-stopped
+    depends_on:
+      hapi-fhir:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8083
+      SPRING_PROFILES_ACTIVE: docker
+      DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-aethertrack}
+      DATASOURCE_USERNAME: ${POSTGRES_USER:-aethertrack}
+      DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aethertrack_secret}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      FHIR_BASE_URL: http://hapi-fhir:8080/fhir
+    ports:
+      - "${FHIR_SERVICE_PORT:-8083}:8083"
+    networks:
+      - aethertrack
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
-  # fhir-service:
-  #   build:
-  #     context: ../backend
-  #     dockerfile: fhir-service/Dockerfile
-  #   image: aethertrack/fhir-service:local
-  #   container_name: aethertrack-fhir
-  #   restart: unless-stopped
-  #   depends_on:
-  #     hapi-fhir:
-  #       condition: service_healthy
-  #     kafka:
-  #       condition: service_healthy
-  #   environment:
-  #     SERVER_PORT: 8083
-  #     HAPI_FHIR_BASE_URL: http://hapi-fhir:8080/fhir
-  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  #   ports:
-  #     - "${FHIR_SERVICE_PORT:-8083}:8083"
-  #   networks:
-  #     - aethertrack
+  # ─────────────────────────────────────────────────────────────────
+  # intake-service
+  # Records supplement intake logs; publishes IntakeLogged events for adherence evaluation.
+  # ─────────────────────────────────────────────────────────────────
+  intake-service:
+    build:
+      context: ../backend
+      dockerfile: intake-service/Dockerfile
+    image: aethertrack/intake-service:local
+    container_name: aethertrack-intake
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8084
+      SPRING_PROFILES_ACTIVE: docker
+      DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-aethertrack}
+      DATASOURCE_USERNAME: ${POSTGRES_USER:-aethertrack}
+      DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aethertrack_secret}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "${INTAKE_PORT:-8084}:8084"
+    networks:
+      - aethertrack
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8084/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
 
-  # intake-service:
-  #   build:
-  #     context: ../backend
-  #     dockerfile: intake-service/Dockerfile
-  #   image: aethertrack/intake-service:local
-  #   container_name: aethertrack-intake
-  #   restart: unless-stopped
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     kafka:
-  #       condition: service_healthy
-  #   environment:
-  #     SERVER_PORT: 8084
-  #     SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-aethertrack}
-  #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-aethertrack}
-  #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aethertrack_secret}
-  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  #   ports:
-  #     - "${INTAKE_PORT:-8084}:8084"
-  #   networks:
-  #     - aethertrack
-
-  # frontend:
-  #   build:
-  #     context: ../frontend
-  #     dockerfile: Dockerfile
-  #   image: aethertrack/frontend:local
-  #   container_name: aethertrack-frontend
-  #   restart: unless-stopped
-  #   depends_on:
-  #     supplement-domain-service:
-  #       condition: service_healthy
-  #   ports:
-  #     - "${FRONTEND_PORT:-5173}:80"
-  #   networks:
-  #     - aethertrack
+  # ─────────────────────────────────────────────────────────────────
+  # frontend (React/Vite → nginx)
+  # nginx.conf proxies /api/* to supplement-domain-service inside the Docker network.
+  # ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    image: aethertrack/frontend:local
+    container_name: aethertrack-frontend
+    restart: unless-stopped
+    depends_on:
+      supplement-domain-service:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    networks:
+      - aethertrack
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s

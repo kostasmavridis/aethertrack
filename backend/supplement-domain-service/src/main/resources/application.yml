@@ -41,6 +41,10 @@ spring:
         enable.idempotence: true
         max.in.flight.requests.per.connection: 1
 
+outbox:
+  poll:
+    interval-ms: ${OUTBOX_POLL_INTERVAL_MS:5000}
+
 server:
   port: ${SERVER_PORT:8081}
   shutdown: graceful

@@ -2,12 +2,40 @@ spring:
   application:
     name: fhir-service
 
+  datasource:
+    url:      ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/aethertrack}
+    username: ${DATASOURCE_USERNAME:aethertrack}
+    password: ${DATASOURCE_PASSWORD:aethertrack_secret}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 10000
+
+  flyway:
+    enabled: true
+    schemas: fhir
+    default-schema: fhir
+    locations: classpath:db/migration
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: fhir
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: fhir-service
       auto-offset-reset: earliest
       enable-auto-commit: false
+    producer:
+      key-serializer:   org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
 
 aethertrack:
   fhir:
@@ -39,3 +67,4 @@ logging:
     com.aethertrack.fhir: DEBUG
     ca.uhn.fhir: WARN
     org.apache.kafka: WARN
+    org.springframework.kafka: INFO

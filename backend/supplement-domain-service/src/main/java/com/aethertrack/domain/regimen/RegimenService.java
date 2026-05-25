@@ -1,9 +1,11 @@
 package com.aethertrack.domain.regimen;
 
+import com.aethertrack.config.CorrelationIdHolder;
+import com.aethertrack.config.KafkaTopics;
 import com.aethertrack.domain.supplement.Supplement;
 import com.aethertrack.domain.supplement.SupplementRepository;
 import com.aethertrack.events.RegimenCreatedPayload;
-import com.aethertrack.events.RegimenEventPublisher;
+import com.aethertrack.outbox.OutboxService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +21,7 @@ public class RegimenService {
 
     private final RegimenRepository regimenRepository;
     private final SupplementRepository supplementRepository;
-    private final RegimenEventPublisher eventPublisher;
+    private final OutboxService outboxService;
 
     @Transactional
     public RegimenDto create(RegimenCreateRequest request) {
@@ -56,9 +58,7 @@ public class RegimenService {
         });
 
         Regimen saved = regimenRepository.save(regimen);
-        RegimenDto dto = RegimenDto.from(saved);
 
-        // Build event payload and publish (best-effort; Slice 5 adds outbox)
         List<RegimenCreatedPayload.RegimenItemPayload> itemPayloads = saved.getItems().stream()
                 .map(i -> new RegimenCreatedPayload.RegimenItemPayload(
                         i.getId(),
@@ -71,9 +71,16 @@ public class RegimenService {
                 ))
                 .toList();
 
-        eventPublisher.publishRegimenCreated(new RegimenCreatedPayload(
-                saved.getId(), saved.getPatientId(), saved.getName(), itemPayloads));
+        outboxService.save(
+                "Regimen",
+                saved.getId().toString(),
+                "RegimenCreated",
+                CorrelationIdHolder.get(),
+                KafkaTopics.REGIMEN_CREATED,
+                new RegimenCreatedPayload(
+                        saved.getId(), saved.getPatientId(), saved.getName(), itemPayloads)
+        );
 
-        return dto;
+        return RegimenDto.from(saved);
     }
 }

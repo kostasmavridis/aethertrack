@@ -1,0 +1,12 @@
+spring:
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+    consumer:
+      group-id: scheduling-service-test
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+logging:
+  level:
+    com.aethertrack.scheduling: DEBUG
+    org.springframework.kafka: DEBUG
+    org.apache.kafka: WARN

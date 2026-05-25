@@ -1,20 +1,32 @@
 spring:
   application:
     name: scheduling-service
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    open-in-view: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: scheduling-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+
 server:
-  port: 8082
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+
 logging:
   level:
-    com.aethertrack: DEBUG
+    root: INFO
+    com.aethertrack.scheduling: DEBUG
+    org.apache.kafka: WARN
+    org.springframework.kafka: INFO

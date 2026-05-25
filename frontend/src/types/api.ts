@@ -1,7 +1,3 @@
-// ──────────────────────────────────────────────
-// Shared API types (aligned with backend DTOs)
-// ──────────────────────────────────────────────
-
 export interface Supplement {
   id: number
   name: string
@@ -41,4 +37,26 @@ export interface RegimenResponse {
   status: string
   items: RegimenItemResponse[]
   createdAt: string
+}
+
+export interface ScheduleAssignmentResponse {
+  window: string
+  label: string
+  assigned: boolean
+}
+
+export interface ScheduleRowResponse {
+  regimenItemId: number
+  supplementCode: string
+  supplementName: string
+  assignments: ScheduleAssignmentResponse[]
+}
+
+export interface RegimenScheduleResponse {
+  regimenId: number
+  patientId: string
+  regimenName: string
+  windows: string[]
+  rows: ScheduleRowResponse[]
+  optimizationNotes: string[]
 }

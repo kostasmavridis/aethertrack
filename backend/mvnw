@@ -1,3 +1,83 @@
 #!/bin/sh
-# Maven Wrapper – run: ./mvnw clean install
-exec mvn "$@"
+# ----------------------------------------------------------------------------
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#    https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# Apache Maven Wrapper startup batch script, version 3.3.2
+# ----------------------------------------------------------------------------
+
+# If JAVA_HOME is set, use it; otherwise use java from PATH
+if [ -n "$JAVA_HOME" ] ; then
+  JAVACMD="$JAVA_HOME/bin/java"
+else
+  JAVACMD="java"
+fi
+
+if ! command -v "$JAVACMD" > /dev/null 2>&1; then
+  echo "Error: JAVA_HOME is not set and no 'java' command could be found in PATH." >&2
+  exit 1
+fi
+
+# Find the project basedir (where .mvn/wrapper lives)
+find_maven_basedir() {
+  BASEDIR=$(dirname "$0")
+  BASEDIR=$(cd "$BASEDIR" && pwd -P)
+  WDIR=$BASEDIR
+  while [ "$WDIR" != '/' ]; do
+    if [ -d "$WDIR"/.mvn ] ; then
+      BASEDIR=$WDIR
+      break
+    fi
+    WDIR=$(dirname "$WDIR")
+  done
+  echo "$BASEDIR"
+}
+
+BASE_DIR=$(find_maven_basedir)
+MVN_WRAPPER_PROPERTIES="$BASE_DIR/.mvn/wrapper/maven-wrapper.properties"
+
+# Read distributionUrl from properties
+if [ -f "$MVN_WRAPPER_PROPERTIES" ]; then
+  DISTRIBUTION_URL=$(grep 'distributionUrl' "$MVN_WRAPPER_PROPERTIES" | sed 's/.*=//;s/\r//')
+fi
+
+# Derive the local Maven installation path from the URL
+MAVEN_VERSION=$(echo "$DISTRIBUTION_URL" | sed 's|.*/apache-maven-||;s|-bin\.zip||;s|-bin\.tar\.gz||')
+MAVEN_HOME="$HOME/.m2/wrapper/dists/apache-maven-${MAVEN_VERSION}-bin/$(echo "$DISTRIBUTION_URL" | md5sum | cut -c1-8)/apache-maven-${MAVEN_VERSION}"
+MVN_CMD="$MAVEN_HOME/bin/mvn"
+
+# Download and unpack Maven if not already present
+if [ ! -x "$MVN_CMD" ]; then
+  DOWNLOAD_DIR=$(dirname "$MAVEN_HOME")
+  mkdir -p "$DOWNLOAD_DIR"
+  ZIP="$DOWNLOAD_DIR/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+  echo "Downloading Maven $MAVEN_VERSION from $DISTRIBUTION_URL"
+  if command -v curl > /dev/null 2>&1; then
+    curl -fsSL -o "$ZIP" "$DISTRIBUTION_URL"
+  elif command -v wget > /dev/null 2>&1; then
+    wget -q -O "$ZIP" "$DISTRIBUTION_URL"
+  else
+    echo "Error: neither curl nor wget found." >&2
+    exit 1
+  fi
+  tar -xzf "$ZIP" -C "$DOWNLOAD_DIR"
+  rm -f "$ZIP"
+fi
+
+exec "$MVN_CMD" "$@"

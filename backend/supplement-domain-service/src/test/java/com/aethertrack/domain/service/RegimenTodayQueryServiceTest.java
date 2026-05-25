@@ -1,11 +1,12 @@
 package com.aethertrack.domain.service;
 
 import com.aethertrack.domain.api.today.RegimenTodayResponse;
-import com.aethertrack.domain.domain.Regimen;
-import com.aethertrack.domain.domain.RegimenItem;
 import com.aethertrack.domain.domain.ScheduledDose;
-import com.aethertrack.domain.repository.RegimenRepository;
+import com.aethertrack.domain.regimen.Regimen;
+import com.aethertrack.domain.regimen.RegimenItem;
+import com.aethertrack.domain.regimen.RegimenRepository;
 import com.aethertrack.domain.repository.ScheduledDoseRepository;
+import com.aethertrack.domain.supplement.Supplement;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -36,9 +37,14 @@ class RegimenTodayQueryServiceTest {
         regimen.setPatientId("patient-1");
         regimen.setName("Morning Stack");
 
+        Supplement supplement = new Supplement();
+        supplement.setId(1L);
+        supplement.setCode("VIT-D3");
+        supplement.setName("Vitamin D3");
+
         RegimenItem item = new RegimenItem();
         item.setId(10L);
-        item.setSupplementCode("VIT-D3");
+        item.setSupplement(supplement);
         item.setDoseQty(new BigDecimal("2000"));
         item.setDoseUnit("IU");
         regimen.setItems(List.of(item));

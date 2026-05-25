@@ -3,10 +3,10 @@ package com.aethertrack.domain.service;
 import com.aethertrack.domain.api.schedule.RegimenScheduleResponse;
 import com.aethertrack.domain.api.schedule.ScheduleAssignmentResponse;
 import com.aethertrack.domain.api.schedule.ScheduleRowResponse;
-import com.aethertrack.domain.domain.Regimen;
-import com.aethertrack.domain.domain.RegimenItem;
 import com.aethertrack.domain.domain.ScheduledDose;
-import com.aethertrack.domain.repository.RegimenRepository;
+import com.aethertrack.domain.regimen.Regimen;
+import com.aethertrack.domain.regimen.RegimenItem;
+import com.aethertrack.domain.regimen.RegimenRepository;
 import com.aethertrack.domain.repository.ScheduledDoseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -62,7 +62,7 @@ public class RegimenScheduleQueryService {
                     ScheduledDose dose = assignments.get(window);
                     return new ScheduleAssignmentResponse(
                             window,
-                            dose != null ? formatLabel(item, dose) : "—",
+                            dose != null ? formatLabel(item, dose) : "\u2014",
                             dose != null
                     );
                 })
@@ -70,8 +70,8 @@ public class RegimenScheduleQueryService {
 
         return new ScheduleRowResponse(
                 item.getId(),
-                item.getSupplementCode(),
-                item.getSupplementCode(),
+                item.getSupplement().getCode(),
+                item.getSupplement().getName(),
                 cells
         );
     }
@@ -79,6 +79,6 @@ public class RegimenScheduleQueryService {
     private String formatLabel(RegimenItem item, ScheduledDose dose) {
         return item.getDoseQty().stripTrailingZeros().toPlainString()
                 + " " + item.getDoseUnit()
-                + (dose.getExplanation() != null && !dose.getExplanation().isBlank() ? " · " + dose.getExplanation() : "");
+                + (dose.getExplanation() != null && !dose.getExplanation().isBlank() ? " \u00b7 " + dose.getExplanation() : "");
     }
 }

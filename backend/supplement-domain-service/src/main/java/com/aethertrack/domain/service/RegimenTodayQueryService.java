@@ -2,10 +2,10 @@ package com.aethertrack.domain.service;
 
 import com.aethertrack.domain.api.today.RegimenTodayResponse;
 import com.aethertrack.domain.api.today.TodayDoseResponse;
-import com.aethertrack.domain.domain.Regimen;
-import com.aethertrack.domain.domain.RegimenItem;
 import com.aethertrack.domain.domain.ScheduledDose;
-import com.aethertrack.domain.repository.RegimenRepository;
+import com.aethertrack.domain.regimen.Regimen;
+import com.aethertrack.domain.regimen.RegimenItem;
+import com.aethertrack.domain.regimen.RegimenRepository;
 import com.aethertrack.domain.repository.ScheduledDoseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -67,10 +67,10 @@ public class RegimenTodayQueryService {
                     RegimenItem item = itemsById.get(dose.getRegimenItemId());
                     return new TodayDoseResponse(
                             dose.getRegimenItemId(),
-                            item != null ? item.getSupplementCode() : "UNKNOWN",
-                            item != null ? item.getSupplementCode() : "Unknown",
+                            item != null ? item.getSupplement().getCode() : "UNKNOWN",
+                            item != null ? item.getSupplement().getName() : "Unknown",
                             dose.getTimeslot(),
-                            item != null ? item.getDoseQty().stripTrailingZeros().toPlainString() + " " + item.getDoseUnit() : "—",
+                            item != null ? item.getDoseQty().stripTrailingZeros().toPlainString() + " " + item.getDoseUnit() : "\u2014",
                             takenItemIds.contains(dose.getRegimenItemId()),
                             adherenceByItem.get(dose.getRegimenItemId())
                     );

@@ -1,39 +1,57 @@
-# Top-level 'version' key removed (obsolete in Compose v2)
+# AetherTrack – Minimal Stack (Slice 18)
+# Brings up: Postgres 18, Redpanda (Kafka-compatible), HAPI FHIR R5, supplement-domain-service
+# Remaining services (scheduling, fhir-service, intake, frontend) are defined but commented out;
+# they will be uncommented in Slice 19.
+#
+# NOTE: PostgreSQL 18 changed PGDATA to /var/lib/postgresql/18/docker and the
+# declared VOLUME to /var/lib/postgresql. The named volume MUST be mounted at
+# /var/lib/postgresql (not /data) and PGDATA set explicitly, otherwise data
+# is written to a silent anonymous volume and lost on container recreation.
+# See: https://github.com/docker-library/postgres/issues/1370
+
+name: aethertrack
+
+networks:
+  aethertrack:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redpanda_data:
+  hapi_data:
+
 services:
 
-  # ── PostgreSQL 18 ───────────────────────────────────────────────────
-  # BREAKING CHANGE in PG 18 (vs PG 17 and below):
-  #   - PGDATA default changed from /var/lib/postgresql/data
-  #     to /var/lib/postgresql/18/docker
-  #   - The declared VOLUME also changed to /var/lib/postgresql (the parent).
-  #   - Volume mounts must target /var/lib/postgresql, NOT /data.
-  #   - PGDATA is explicitly set here for clarity and future-proofing.
-  # Reference: https://hub.docker.com/_/postgres (PG 18 changelog)
+  # ─────────────────────────────────────────────────────────────────
+  # PostgreSQL 18
+  # Mount at /var/lib/postgresql (parent); PG18 stores data in 18/docker/ subdir.
+  # ─────────────────────────────────────────────────────────────────
   postgres:
     image: postgres:18-alpine
     container_name: aethertrack-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB:       aethertrack
-      POSTGRES_USER:     aethertrack
-      POSTGRES_PASSWORD: aethertrack_secret
-      # Explicit PGDATA matching the PG 18 default; actual data lives at
-      # <volume>/18/docker inside the named volume.
-      PGDATA: /var/lib/postgresql/18/docker
-    ports:
-      - "5432:5432"
+      POSTGRES_USER:     ${POSTGRES_USER:-aethertrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aethertrack_secret}
+      POSTGRES_DB:       ${POSTGRES_DB:-aethertrack}
+      PGDATA:            /var/lib/postgresql/18/docker
     volumes:
-      # Mount the PARENT directory, not the old /data subfolder.
-      # PG 18 writes to postgres_data:/var/lib/postgresql/18/docker
       - postgres_data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - aethertrack
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aethertrack -d aethertrack"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aethertrack} -d ${POSTGRES_DB:-aethertrack}"]
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 15s
+      retries: 10
+      start_period: 10s
 
-  # ── Kafka (Redpanda KRaft – no ZooKeeper) ────────────────────────────
+  # ─────────────────────────────────────────────────────────────────
+  # Redpanda (Kafka-compatible, KRaft – no ZooKeeper)
+  # ─────────────────────────────────────────────────────────────────
   kafka:
     image: redpandadata/redpanda:v25.3.9
     container_name: aethertrack-kafka
@@ -41,79 +59,195 @@ services:
     command:
       - redpanda
       - start
-      - --overprovisioned
-      - --smp
-      - "1"
-      - --memory
-      - 512M
-      - --reserve-memory
-      - 0M
-      - --node-id
-      - "0"
-      - --check=false
-      - --kafka-addr
-      - PLAINTEXT://0.0.0.0:9092
-      - --advertise-kafka-addr
-      - PLAINTEXT://kafka:9092
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://kafka:9092,external://localhost:19092
+      - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr=kafka:33145
+      - --advertise-rpc-addr=kafka:33145
+      - --mode=dev-container
+      - --smp=1
+      - --memory=512M
+      - --reserve-memory=0M
+      - --default-log-level=warn
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
     ports:
-      - "9092:9092"
+      - "${KAFKA_PORT:-19092}:19092"
+      - "${KAFKA_SCHEMA_PORT:-18081}:18081"
+    networks:
+      - aethertrack
     healthcheck:
-      test: ["CMD-SHELL", "rpk cluster info --brokers localhost:9092 || exit 1"]
-      interval: 15s
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.*true'"]
+      interval: 10s
       timeout: 10s
-      retries: 5
-      start_period: 10s
+      retries: 10
+      start_period: 20s
 
-  # ── HAPI FHIR R5 Server ────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────────
+  # Redpanda Console (optional UI at http://localhost:8085)
+  # ─────────────────────────────────────────────────────────────────
+  kafka-console:
+    image: redpandadata/console:v2.8.4
+    container_name: aethertrack-kafka-console
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      CONFIG_FILEPATH: /etc/redpanda/console-config.yaml
+    volumes:
+      - ./redpanda/console-config.yaml:/etc/redpanda/console-config.yaml:ro
+    ports:
+      - "${KAFKA_CONSOLE_PORT:-8085}:8080"
+    networks:
+      - aethertrack
+
+  # ─────────────────────────────────────────────────────────────────
+  # HAPI FHIR R5
+  # ─────────────────────────────────────────────────────────────────
   hapi-fhir:
     image: hapiproject/hapi:latest
-    container_name: aethertrack-fhir
+    container_name: aethertrack-hapi-fhir
     restart: unless-stopped
-    environment:
-      hapi.fhir.fhir_version: R5
-      spring.datasource.url:      jdbc:postgresql://postgres:5432/aethertrack
-      spring.datasource.username: aethertrack
-      spring.datasource.password: aethertrack_secret
-      spring.datasource.driverClassName: org.postgresql.Driver
-      # HapiFhirPostgres94Dialect was deprecated in HAPI FHIR 7.x and will be
-      # removed in a future release. HapiFhirPostgresDialect is the current
-      # replacement and supports all Postgres versions >= 10.
-      spring.jpa.properties.hibernate.dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
-    ports:
-      - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      spring.datasource.url:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-aethertrack}
+      spring.datasource.username: ${POSTGRES_USER:-aethertrack}
+      spring.datasource.password: ${POSTGRES_PASSWORD:-aethertrack_secret}
+      spring.datasource.driverClassName: org.postgresql.Driver
+      spring.jpa.properties.hibernate.dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgres94Dialect
+      hapi.fhir.fhir_version: R5
+      hapi.fhir.allow_external_references: "true"
+      hapi.fhir.allow_multiple_delete: "true"
+    volumes:
+      - hapi_data:/data/hapi
+    ports:
+      - "${HAPI_PORT:-8080}:8080"
+    networks:
+      - aethertrack
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/fhir/metadata > /dev/null || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/fhir/metadata > /dev/null"]
+      interval: 15s
       timeout: 10s
-      retries: 10
+      retries: 12
       start_period: 60s
 
-  # ── Application services (uncommented slice by slice from Slice 18) ───
-  # supplement-domain-service:
-  #   build: ../backend/supplement-domain-service
-  #   ports: ["8081:8081"]
-  #   depends_on:
-  #     postgres: { condition: service_healthy }
-  #     kafka:    { condition: service_healthy }
-  #
-  # scheduling-service:
-  #   build: ../backend/scheduling-service
-  #   ports: ["8082:8082"]
-  #
-  # fhir-service:
-  #   build: ../backend/fhir-service
-  #   ports: ["8083:8083"]
-  #
-  # intake-service:
-  #   build: ../backend/intake-service
-  #   ports: ["8084:8084"]
-  #
-  # frontend:
-  #   build: ../frontend
-  #   ports: ["3000:80"]
+  # ─────────────────────────────────────────────────────────────────
+  # supplement-domain-service (Slice 18 – first containerised service)
+  # ─────────────────────────────────────────────────────────────────
+  supplement-domain-service:
+    build:
+      context: ../backend
+      dockerfile: supplement-domain-service/Dockerfile
+    image: aethertrack/supplement-domain-service:local
+    container_name: aethertrack-domain
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8081
+      SPRING_PROFILES_ACTIVE: docker
+      # Spring Boot relaxed binding: these map directly to spring.datasource.* and spring.kafka.*
+      SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-aethertrack}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-aethertrack}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aethertrack_secret}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "${DOMAIN_SERVICE_PORT:-8081}:8081"
+    networks:
+      - aethertrack
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
 
-volumes:
-  postgres_data:
+  # ─────────────────────────────────────────────────────────────────
+  # Remaining services – uncomment in Slice 19
+  # ─────────────────────────────────────────────────────────────────
+
+  # scheduling-service:
+  #   build:
+  #     context: ../backend
+  #     dockerfile: scheduling-service/Dockerfile
+  #   image: aethertrack/scheduling-service:local
+  #   container_name: aethertrack-scheduling
+  #   restart: unless-stopped
+  #   depends_on:
+  #     supplement-domain-service:
+  #       condition: service_healthy
+  #   environment:
+  #     SERVER_PORT: 8082
+  #     SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-aethertrack}
+  #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-aethertrack}
+  #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aethertrack_secret}
+  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #   ports:
+  #     - "${SCHEDULING_PORT:-8082}:8082"
+  #   networks:
+  #     - aethertrack
+
+  # fhir-service:
+  #   build:
+  #     context: ../backend
+  #     dockerfile: fhir-service/Dockerfile
+  #   image: aethertrack/fhir-service:local
+  #   container_name: aethertrack-fhir
+  #   restart: unless-stopped
+  #   depends_on:
+  #     hapi-fhir:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+  #   environment:
+  #     SERVER_PORT: 8083
+  #     HAPI_FHIR_BASE_URL: http://hapi-fhir:8080/fhir
+  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #   ports:
+  #     - "${FHIR_SERVICE_PORT:-8083}:8083"
+  #   networks:
+  #     - aethertrack
+
+  # intake-service:
+  #   build:
+  #     context: ../backend
+  #     dockerfile: intake-service/Dockerfile
+  #   image: aethertrack/intake-service:local
+  #   container_name: aethertrack-intake
+  #   restart: unless-stopped
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+  #   environment:
+  #     SERVER_PORT: 8084
+  #     SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-aethertrack}
+  #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-aethertrack}
+  #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aethertrack_secret}
+  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #   ports:
+  #     - "${INTAKE_PORT:-8084}:8084"
+  #   networks:
+  #     - aethertrack
+
+  # frontend:
+  #   build:
+  #     context: ../frontend
+  #     dockerfile: Dockerfile
+  #   image: aethertrack/frontend:local
+  #   container_name: aethertrack-frontend
+  #   restart: unless-stopped
+  #   depends_on:
+  #     supplement-domain-service:
+  #       condition: service_healthy
+  #   ports:
+  #     - "${FRONTEND_PORT:-5173}:80"
+  #   networks:
+  #     - aethertrack

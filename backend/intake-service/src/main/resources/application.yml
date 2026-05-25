@@ -1,12 +1,42 @@
 spring:
   application:
     name: intake-service
+
+  datasource:
+    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/aethertrack}
+    username: ${DATASOURCE_USERNAME:aethertrack}
+    password: ${DATASOURCE_PASSWORD:aethertrack_secret}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 10000
+
+  flyway:
+    enabled: true
+    schemas: intake
+    default-schema: intake
+    locations: classpath:db/migration
+
   jpa:
     hibernate:
       ddl-auto: validate
-    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: intake
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+
 server:
-  port: 8084
+  port: ${SERVER_PORT:8084}
+  shutdown: graceful
+
 management:
   endpoints:
     web:
@@ -15,6 +45,17 @@ management:
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+
+aethertrack:
+  intake:
+    outbox:
+      poll-ms: ${INTAKE_OUTBOX_POLL_MS:2000}
+
 logging:
   level:
-    com.aethertrack: DEBUG
+    root: INFO
+    com.aethertrack.intake: DEBUG
+    org.apache.kafka: WARN
+    org.springframework.kafka: INFO

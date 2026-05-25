@@ -1,9 +1,10 @@
-# Removed top-level 'version' key (obsolete in Compose v2, causes warning)
+# Top-level 'version' key removed (obsolete in Compose v2)
 services:
 
-  # ── PostgreSQL ──────────────────────────────────────────────────────────
+  # ── PostgreSQL 18 ────────────────────────────────────────────────────
+  # Project requires PostgreSQL 18.3+; use 18-alpine for a minimal image.
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: aethertrack-postgres
     restart: unless-stopped
     environment:
@@ -21,7 +22,6 @@ services:
       retries: 5
 
   # ── Kafka (Redpanda KRaft – no ZooKeeper) ────────────────────────────
-  # Latest stable: v25.3.9  (bumped from v24.3.4 which caused pull errors)
   kafka:
     image: redpandadata/redpanda:v25.3.9
     container_name: aethertrack-kafka
@@ -53,8 +53,6 @@ services:
       start_period: 10s
 
   # ── HAPI FHIR R5 Server ────────────────────────────────────────────────
-  # Fixed tag: 'hapiproject/hapi:latest'  (v8.8.0-distroless does not exist;
-  # distroless variant is not published – use standard image or pin to v8.4.0-2)
   hapi-fhir:
     image: hapiproject/hapi:latest
     container_name: aethertrack-fhir
@@ -76,7 +74,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 60s    # HAPI is slow on first boot (schema creation)
+      start_period: 60s
 
   # ── Application services (uncommented slice by slice from Slice 18) ───
   # supplement-domain-service:

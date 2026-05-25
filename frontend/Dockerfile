@@ -3,13 +3,15 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm ci --silent
+# Copy manifests first for layer caching.
+# No lockfile is committed; npm install resolves from package.json.
+COPY package.json ./
+RUN npm install --silent
 
 COPY . .
 
 # VITE_API_BASE_URL is baked in at build time.
-# Defaults to /api so nginx can proxy it; override via --build-arg for other environments.
+# Defaults to /api so nginx proxies it; override via --build-arg for other envs.
 ARG VITE_API_BASE_URL=/api
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN npm run build

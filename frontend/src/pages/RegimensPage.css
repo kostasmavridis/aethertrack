@@ -1,0 +1,122 @@
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.regimen-list { display: flex; flex-direction: column; gap: 1rem; }
+
+.regimen-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.regimen-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.regimen-name { font-size: 1.1rem; font-weight: 600; color: #1e293b; }
+
+.regimen-meta {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.regimen-date { font-size: 0.82rem; color: #94a3b8; white-space: nowrap; }
+
+.status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-active   { background: #dcfce7; color: #15803d; }
+.status-pending  { background: #fef9c3; color: #a16207; }
+.status-inactive { background: #f1f5f9; color: #64748b; }
+
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.items-table th {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 600;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.items-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #374151;
+}
+
+.items-table tr:last-child td { border-bottom: none; }
+
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: #94a3b8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-primary {
+  padding: 0.55rem 1.4rem;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: background 0.15s;
+}
+.btn-primary:hover { background: #2563eb; }
+
+.btn-secondary {
+  padding: 0.45rem 1rem;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-secondary:hover:not(:disabled) { background: #e2e8f0; }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.error-banner {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #dc2626;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}

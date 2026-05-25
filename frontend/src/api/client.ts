@@ -1,14 +1,27 @@
-import axios from 'axios'
+// Base fetch wrapper – forwards X-Correlation-Id and handles JSON errors uniformly.
+const BASE = '/api'
 
-const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
-  headers: { 'Content-Type': 'application/json' },
-})
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message)
+  }
+}
 
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    ...init,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new ApiError(res.status, text)
+  }
+  // 204 No Content
+  if (res.status === 204) return undefined as unknown as T
+  return res.json() as Promise<T>
+}
 
-export default apiClient
+export const api = {
+  get:  <T>(path: string)              => request<T>(path),
+  post: <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+}

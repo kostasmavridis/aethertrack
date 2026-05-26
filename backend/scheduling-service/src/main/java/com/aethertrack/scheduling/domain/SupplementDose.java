@@ -1,6 +1,7 @@
 package com.aethertrack.scheduling.domain;
 
 import ai.timefold.solver.core.api.domain.entity.PlanningEntity;
+import ai.timefold.solver.core.api.domain.lookup.PlanningId;
 import ai.timefold.solver.core.api.domain.variable.PlanningVariable;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -20,6 +21,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class SupplementDose {
 
+    @PlanningId
     private Long id;
     private Long regimenItemId;
     private String supplementCode;

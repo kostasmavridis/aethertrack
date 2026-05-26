@@ -131,8 +131,8 @@ services:
       test: ["CMD-SHELL", "curl -fs http://localhost:8080/fhir/metadata > /dev/null"]
       interval: 15s
       timeout: 10s
-      retries: 12
-      start_period: 60s
+      retries: 15
+      start_period: 120s
 
   # ─────────────────────────────────────────────────────────────────
   # supplement-domain-service
@@ -164,8 +164,8 @@ services:
       test: ["CMD-SHELL", "curl -fs http://localhost:8081/actuator/health | grep -q UP"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 45s
+      retries: 15
+      start_period: 90s
 
   # ─────────────────────────────────────────────────────────────────
   # scheduling-service
@@ -197,8 +197,8 @@ services:
       test: ["CMD-SHELL", "curl -fs http://localhost:8082/actuator/health | grep -q UP"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 60s
+      retries: 15
+      start_period: 90s
 
   # ─────────────────────────────────────────────────────────────────
   # fhir-service
@@ -232,8 +232,8 @@ services:
       test: ["CMD-SHELL", "curl -fs http://localhost:8083/actuator/health | grep -q UP"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 60s
+      retries: 15
+      start_period: 90s
 
   # ─────────────────────────────────────────────────────────────────
   # intake-service
@@ -266,8 +266,8 @@ services:
       test: ["CMD-SHELL", "curl -fs http://localhost:8084/actuator/health | grep -q UP"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 45s
+      retries: 15
+      start_period: 90s
 
   # ─────────────────────────────────────────────────────────────────
   # frontend (React/Vite → nginx)

@@ -3,9 +3,9 @@ spring:
     name: supplement-domain-service
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/aethertrack}
-    username: ${DB_USER:aethertrack}
-    password: ${DB_PASS:aethertrack}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aethertrack}
+    username: ${SPRING_DATASOURCE_USERNAME:aethertrack}
+    password: ${SPRING_DATASOURCE_PASSWORD:aethertrack}
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: DomainPool
@@ -32,7 +32,7 @@ spring:
     validate-on-migrate: true
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       acks: all
       retries: 3
